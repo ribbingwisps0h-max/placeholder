@@ -1,0 +1,616 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Placeholder.gen — Image Generator</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Barlow+Condensed:wght@300;600;800&display=swap" rel="stylesheet" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    :root {
+      --accent: #ff3f00;
+      --accent2: #ffd600;
+      --dark: #0d0d0d;
+      --mid: #1a1a1a;
+      --border: #2e2e2e;
+      --text: #e8e8e8;
+      --muted: #666;
+    }
+    * { box-sizing: border-box; }
+    body {
+      background: var(--dark);
+      color: var(--text);
+      font-family: 'Space Mono', monospace;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+    /* Scanline overlay */
+    body::before {
+      content: '';
+      position: fixed; inset: 0;
+      background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,.06) 2px, rgba(0,0,0,.06) 4px);
+      pointer-events: none; z-index: 9999;
+    }
+
+    .brand {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-weight: 800;
+      font-size: clamp(2rem, 5vw, 3.5rem);
+      letter-spacing: -.02em;
+      line-height: 1;
+    }
+    .brand span { color: var(--accent); }
+
+    .tag {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-weight: 300;
+      letter-spacing: .25em;
+      text-transform: uppercase;
+      font-size: .75rem;
+      color: var(--muted);
+    }
+
+    /* Panel */
+    .panel {
+      background: var(--mid);
+      border: 1px solid var(--border);
+      border-radius: 2px;
+    }
+
+    /* Section label */
+    .section-label {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: .15em;
+      font-size: .7rem;
+      color: var(--accent);
+      border-bottom: 1px solid var(--border);
+      padding-bottom: .5rem;
+      margin-bottom: 1rem;
+    }
+
+    /* Inputs */
+    input[type="text"], input[type="number"], select {
+      background: var(--dark);
+      border: 1px solid var(--border);
+      color: var(--text);
+      border-radius: 2px;
+      padding: .45rem .75rem;
+      font-family: 'Space Mono', monospace;
+      font-size: .8rem;
+      width: 100%;
+      outline: none;
+      transition: border-color .15s;
+    }
+    input:focus, select:focus { border-color: var(--accent); }
+
+    /* Color swatch input */
+    .color-row {
+      display: flex; gap: .5rem; align-items: center;
+    }
+    input[type="color"] {
+      width: 2.5rem; height: 2.5rem;
+      border: 1px solid var(--border);
+      border-radius: 2px;
+      background: transparent;
+      cursor: pointer;
+      padding: 2px;
+      flex-shrink: 0;
+    }
+
+    /* Toggle switch */
+    .toggle { position: relative; display: inline-flex; align-items: center; gap: .6rem; cursor: pointer; user-select: none; }
+    .toggle input { display: none; }
+    .toggle-track {
+      width: 2.5rem; height: 1.25rem;
+      background: var(--dark);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      position: relative;
+      transition: background .2s;
+    }
+    .toggle-track::after {
+      content: '';
+      position: absolute;
+      top: 2px; left: 2px;
+      width: .9rem; height: .9rem;
+      background: var(--muted);
+      border-radius: 50%;
+      transition: transform .2s, background .2s;
+    }
+    .toggle input:checked ~ .toggle-track { background: var(--accent); border-color: var(--accent); }
+    .toggle input:checked ~ .toggle-track::after { transform: translateX(1.25rem); background: #fff; }
+    .toggle-label { font-size: .8rem; color: var(--text); }
+
+    /* Generate button */
+    .btn-generate {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: .12em;
+      font-size: 1.1rem;
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: 2px;
+      padding: .85rem 2.5rem;
+      cursor: pointer;
+      transition: background .15s, transform .1s;
+      width: 100%;
+    }
+    .btn-generate:hover { background: #e03600; }
+    .btn-generate:active { transform: scale(.98); }
+
+    /* Download button */
+    .btn-dl {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: .1em;
+      font-size: .85rem;
+      background: transparent;
+      color: var(--accent2);
+      border: 1px solid var(--accent2);
+      border-radius: 2px;
+      padding: .5rem 1.25rem;
+      cursor: pointer;
+      text-decoration: none;
+      display: inline-flex; align-items: center; gap: .4rem;
+      transition: background .15s, color .15s;
+    }
+    .btn-dl:hover { background: var(--accent2); color: var(--dark); }
+
+    /* Preview area */
+    #preview-wrap {
+      background: repeating-conic-gradient(#1f1f1f 0% 25%, #181818 0% 50%) 0 0 / 20px 20px;
+      border: 1px solid var(--border);
+      border-radius: 2px;
+      display: flex; align-items: center; justify-content: center;
+      min-height: 300px;
+      position: relative;
+      overflow: hidden;
+    }
+    #preview-img {
+      max-width: 100%; max-height: 480px;
+      display: none;
+      box-shadow: 0 8px 40px rgba(0,0,0,.6);
+    }
+    #preview-placeholder {
+      text-align: center;
+    }
+    .preview-icon { font-size: 3rem; opacity: .2; }
+
+    /* URL bar */
+    #url-bar {
+      font-size: .7rem;
+      word-break: break-all;
+      color: var(--muted);
+      background: var(--dark);
+      border: 1px solid var(--border);
+      border-radius: 2px;
+      padding: .5rem .75rem;
+      cursor: pointer;
+      transition: color .15s;
+    }
+    #url-bar:hover { color: var(--accent2); }
+    #url-bar.copied { color: #4ade80 !important; }
+
+    /* Gradient colors list */
+    #grad-colors-list { display: flex; flex-direction: column; gap: .4rem; }
+
+    /* Divider */
+    .divider { border: none; border-top: 1px solid var(--border); margin: 0; }
+
+    /* Spinner */
+    .spinner {
+      border: 3px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      width: 2rem; height: 2rem;
+      animation: spin .7s linear infinite;
+      display: none;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Angle dial */
+    .angle-display {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-weight: 600;
+      font-size: 1.1rem;
+      color: var(--accent2);
+      min-width: 3rem;
+      text-align: right;
+    }
+    input[type="range"] {
+      accent-color: var(--accent);
+      width: 100%;
+    }
+
+    /* Tooltip */
+    .copy-hint { font-size: .65rem; color: var(--muted); margin-top: .25rem; }
+
+    /* Responsive */
+    @media(max-width: 768px) {
+      .layout { flex-direction: column; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- Header -->
+<header style="border-bottom:1px solid var(--border); padding:1.25rem 2rem; display:flex; align-items:center; justify-content:space-between;">
+  <div>
+    <div class="brand">PH<span>.</span>GEN</div>
+    <div class="tag">Placeholder Image Generator</div>
+  </div>
+  <a href="/docs" style="font-size:.7rem; color:var(--muted); text-decoration:none; font-family:'Barlow Condensed',sans-serif; letter-spacing:.1em; text-transform:uppercase;">API Docs →</a>
+</header>
+
+<!-- Main -->
+<main style="max-width:1200px; margin:0 auto; padding:2rem 1.5rem;">
+  <div class="layout" style="display:flex; gap:1.5rem; align-items:flex-start;">
+
+    <!-- ── Controls panel ── -->
+    <div class="panel" style="flex:0 0 340px; padding:1.5rem; display:flex; flex-direction:column; gap:1.5rem;">
+
+      <!-- Size -->
+      <div>
+        <div class="section-label">01 — Size</div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:.6rem;">
+          <div>
+            <label style="font-size:.65rem; color:var(--muted); display:block; margin-bottom:.3rem;">WIDTH (px)</label>
+            <input type="number" id="inp-w" value="800" min="1" max="5000" />
+          </div>
+          <div>
+            <label style="font-size:.65rem; color:var(--muted); display:block; margin-bottom:.3rem;">HEIGHT (px)</label>
+            <input type="number" id="inp-h" value="600" min="1" max="5000" />
+          </div>
+        </div>
+        <!-- Quick presets -->
+        <div style="margin-top:.6rem; display:flex; flex-wrap:wrap; gap:.35rem;">
+          <button class="preset-btn" data-w="800" data-h="600">800×600</button>
+          <button class="preset-btn" data-w="1920" data-h="1080">1920×1080</button>
+          <button class="preset-btn" data-w="400" data-h="300">400×300</button>
+          <button class="preset-btn" data-w="1200" data-h="628">OG 1200×628</button>
+          <button class="preset-btn" data-w="300" data-h="250">Banner</button>
+        </div>
+      </div>
+
+      <hr class="divider" />
+
+      <!-- Background -->
+      <div>
+        <div class="section-label">02 — Background</div>
+
+        <!-- Solid color -->
+        <div id="solid-section">
+          <label style="font-size:.65rem; color:var(--muted); display:block; margin-bottom:.3rem;">SOLID COLOR</label>
+          <div class="color-row">
+            <input type="color" id="pick-bg" value="#cccccc" />
+            <input type="text" id="inp-bg" value="cccccc" placeholder="HEX (no #)" />
+          </div>
+        </div>
+
+        <!-- Gradient toggle -->
+        <div style="margin-top:.75rem; margin-bottom:.75rem;">
+          <label class="toggle">
+            <input type="checkbox" id="chk-gradient" />
+            <span class="toggle-track"></span>
+            <span class="toggle-label">Enable Gradient</span>
+          </label>
+        </div>
+
+        <!-- Gradient options -->
+        <div id="gradient-options" style="display:none;">
+          <label style="font-size:.65rem; color:var(--muted); display:block; margin-bottom:.4rem;">GRADIENT COLORS</label>
+          <div id="grad-colors-list">
+            <div class="color-row grad-stop">
+              <input type="color" class="gc-picker" value="#4facfe" />
+              <input type="text" class="gc-hex" value="4facfe" placeholder="HEX" />
+              <button class="gc-remove" style="display:none; background:none; border:none; color:var(--muted); cursor:pointer; font-size:1rem; padding:0 .25rem;">✕</button>
+            </div>
+            <div class="color-row grad-stop">
+              <input type="color" class="gc-picker" value="#00f2fe" />
+              <input type="text" class="gc-hex" value="00f2fe" placeholder="HEX" />
+              <button class="gc-remove" style="display:none; background:none; border:none; color:var(--muted); cursor:pointer; font-size:1rem; padding:0 .25rem;">✕</button>
+            </div>
+          </div>
+          <button id="btn-add-color" style="margin-top:.5rem; background:none; border:1px dashed var(--border); color:var(--muted); font-family:'Space Mono',monospace; font-size:.7rem; padding:.3rem .75rem; cursor:pointer; border-radius:2px; width:100%;">+ Add color stop</button>
+
+          <div style="margin-top:.75rem;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:.3rem;">
+              <label style="font-size:.65rem; color:var(--muted);">ANGLE</label>
+              <span class="angle-display" id="angle-display">135°</span>
+            </div>
+            <input type="range" id="inp-angle" min="0" max="360" value="135" />
+          </div>
+        </div>
+      </div>
+
+      <hr class="divider" />
+
+      <!-- Text -->
+      <div>
+        <div class="section-label">03 — Text</div>
+        <div style="margin-bottom:.6rem;">
+          <label style="font-size:.65rem; color:var(--muted); display:block; margin-bottom:.3rem;">OVERLAY TEXT</label>
+          <input type="text" id="inp-text" placeholder="Leave blank for size label" />
+        </div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:.6rem;">
+          <div>
+            <label style="font-size:.65rem; color:var(--muted); display:block; margin-bottom:.3rem;">TEXT COLOR</label>
+            <div class="color-row">
+              <input type="color" id="pick-tc" value="#333333" />
+              <input type="text" id="inp-tc" value="333333" />
+            </div>
+          </div>
+          <div>
+            <label style="font-size:.65rem; color:var(--muted); display:block; margin-bottom:.3rem;">FONT SIZE (0=auto)</label>
+            <input type="number" id="inp-fs" value="0" min="0" max="500" />
+          </div>
+        </div>
+      </div>
+
+      <hr class="divider" />
+
+      <!-- Format -->
+      <div>
+        <div class="section-label">04 — Format</div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:.6rem;">
+          <div>
+            <label style="font-size:.65rem; color:var(--muted); display:block; margin-bottom:.3rem;">FORMAT</label>
+            <select id="inp-fmt">
+              <option value="PNG">PNG</option>
+              <option value="JPEG">JPEG</option>
+              <option value="WEBP">WEBP</option>
+            </select>
+          </div>
+          <div id="quality-wrap">
+            <label style="font-size:.65rem; color:var(--muted); display:block; margin-bottom:.3rem;">QUALITY</label>
+            <input type="number" id="inp-q" value="90" min="1" max="100" />
+          </div>
+        </div>
+      </div>
+
+      <hr class="divider" />
+
+      <!-- Generate -->
+      <button class="btn-generate" id="btn-gen" onclick="generate()">▶ Generate Image</button>
+    </div>
+
+    <!-- ── Preview panel ── -->
+    <div style="flex:1; display:flex; flex-direction:column; gap:1rem;">
+
+      <!-- Preview box -->
+      <div id="preview-wrap">
+        <div id="preview-placeholder">
+          <div class="preview-icon">⬜</div>
+          <div style="font-size:.75rem; color:var(--muted); margin-top:.5rem;">Configure & generate</div>
+        </div>
+        <div class="spinner" id="spinner"></div>
+        <img id="preview-img" alt="Preview" />
+      </div>
+
+      <!-- URL bar + actions -->
+      <div id="action-bar" style="display:none;">
+        <div style="display:flex; align-items:center; gap:.75rem; flex-wrap:wrap;">
+          <a id="btn-dl" class="btn-dl" href="#" download>
+            <span>↓</span> Download
+          </a>
+          <div style="font-size:.7rem; color:var(--muted);">Direct URL:</div>
+        </div>
+        <div style="margin-top:.5rem;">
+          <div id="url-bar" onclick="copyUrl()" title="Click to copy">—</div>
+          <div class="copy-hint">↑ click to copy URL</div>
+        </div>
+
+        <!-- HTML snippet -->
+        <div style="margin-top:.75rem;">
+          <div class="section-label" style="margin-bottom:.4rem;">HTML SNIPPET</div>
+          <div id="html-snippet" style="font-size:.65rem; word-break:break-all; color:var(--muted); background:var(--dark); border:1px solid var(--border); border-radius:2px; padding:.5rem .75rem; cursor:pointer;" onclick="copySnippet()" title="Click to copy"></div>
+          <div class="copy-hint">↑ click to copy &lt;img&gt; tag</div>
+        </div>
+      </div>
+
+      <!-- Info cards -->
+      <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(140px, 1fr)); gap:.75rem;">
+        <div class="panel" style="padding:.75rem;">
+          <div style="font-size:.6rem; color:var(--muted); text-transform:uppercase; letter-spacing:.1em; margin-bottom:.2rem;">Dimensions</div>
+          <div id="info-dim" style="font-family:'Barlow Condensed',sans-serif; font-weight:600; font-size:1.1rem;">—</div>
+        </div>
+        <div class="panel" style="padding:.75rem;">
+          <div style="font-size:.6rem; color:var(--muted); text-transform:uppercase; letter-spacing:.1em; margin-bottom:.2rem;">Format</div>
+          <div id="info-fmt" style="font-family:'Barlow Condensed',sans-serif; font-weight:600; font-size:1.1rem;">—</div>
+        </div>
+        <div class="panel" style="padding:.75rem;">
+          <div style="font-size:.6rem; color:var(--muted); text-transform:uppercase; letter-spacing:.1em; margin-bottom:.2rem;">Background</div>
+          <div id="info-bg" style="font-family:'Barlow Condensed',sans-serif; font-weight:600; font-size:1.1rem;">—</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</main>
+
+<style>
+  .preset-btn {
+    font-family: 'Space Mono', monospace;
+    font-size: .6rem;
+    background: var(--dark);
+    border: 1px solid var(--border);
+    color: var(--muted);
+    padding: .25rem .5rem;
+    border-radius: 2px;
+    cursor: pointer;
+    transition: border-color .15s, color .15s;
+  }
+  .preset-btn:hover { border-color: var(--accent); color: var(--text); }
+</style>
+
+<script>
+  // ---- Preset buttons ----
+  document.querySelectorAll('.preset-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.getElementById('inp-w').value = btn.dataset.w;
+      document.getElementById('inp-h').value = btn.dataset.h;
+    });
+  });
+
+  // ---- Gradient toggle ----
+  document.getElementById('chk-gradient').addEventListener('change', function() {
+    document.getElementById('gradient-options').style.display = this.checked ? 'block' : 'none';
+    document.getElementById('solid-section').style.opacity = this.checked ? '.4' : '1';
+  });
+
+  // ---- Angle slider ----
+  document.getElementById('inp-angle').addEventListener('input', function() {
+    document.getElementById('angle-display').textContent = this.value + '°';
+  });
+
+  // ---- Format quality ----
+  document.getElementById('inp-fmt').addEventListener('change', function() {
+    document.getElementById('quality-wrap').style.opacity = this.value === 'PNG' ? '.4' : '1';
+  });
+
+  // ---- Color pickers sync ----
+  function syncPicker(pickId, textId) {
+    const p = document.getElementById(pickId), t = document.getElementById(textId);
+    p.addEventListener('input', () => t.value = p.value.replace('#',''));
+    t.addEventListener('input', () => { if(/^[0-9a-fA-F]{3,6}$/.test(t.value)) p.value = '#'+t.value; });
+  }
+  syncPicker('pick-bg','inp-bg');
+  syncPicker('pick-tc','inp-tc');
+
+  // ---- Gradient color stops ----
+  const gradList = document.getElementById('grad-colors-list');
+
+  function updateRemoveButtons() {
+    const stops = gradList.querySelectorAll('.grad-stop');
+    stops.forEach((s, i) => {
+      s.querySelector('.gc-remove').style.display = stops.length > 2 ? 'block' : 'none';
+    });
+  }
+
+  function addStopListeners(row) {
+    const picker = row.querySelector('.gc-picker');
+    const hex = row.querySelector('.gc-hex');
+    const rm = row.querySelector('.gc-remove');
+    picker.addEventListener('input', () => hex.value = picker.value.replace('#',''));
+    hex.addEventListener('input', () => { if(/^[0-9a-fA-F]{3,6}$/.test(hex.value)) picker.value = '#'+hex.value; });
+    rm.addEventListener('click', () => { row.remove(); updateRemoveButtons(); });
+  }
+  gradList.querySelectorAll('.grad-stop').forEach(addStopListeners);
+
+  document.getElementById('btn-add-color').addEventListener('click', () => {
+    if(gradList.querySelectorAll('.grad-stop').length >= 5) return;
+    const row = document.createElement('div');
+    row.className = 'color-row grad-stop';
+    row.innerHTML = `<input type="color" class="gc-picker" value="#a855f7" />
+      <input type="text" class="gc-hex" value="a855f7" placeholder="HEX" />
+      <button class="gc-remove" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:1rem;padding:0 .25rem;">✕</button>`;
+    gradList.appendChild(row);
+    addStopListeners(row);
+    updateRemoveButtons();
+  });
+
+  // ---- Build URL ----
+  function buildUrl(download = false) {
+    const w = document.getElementById('inp-w').value;
+    const h = document.getElementById('inp-h').value;
+    const bg = document.getElementById('inp-bg').value;
+    const gradient = document.getElementById('chk-gradient').checked;
+    const angle = document.getElementById('inp-angle').value;
+    const text = document.getElementById('inp-text').value;
+    const tc = document.getElementById('inp-tc').value;
+    const fs = document.getElementById('inp-fs').value;
+    const fmt = document.getElementById('inp-fmt').value;
+    const q = document.getElementById('inp-q').value;
+
+    const gcHexes = [...gradList.querySelectorAll('.gc-hex')].map(i => i.value).join(',');
+
+    const params = new URLSearchParams({ w, h, bg, fmt, q, tc, fs });
+    if(gradient) { params.set('gradient','true'); params.set('gc', gcHexes); params.set('ga', angle); }
+    if(text) params.set('text', text);
+    if(download) params.set('download','true');
+
+    return `/api/gen?${params.toString()}`;
+  }
+
+  // ---- Generate ----
+  async function generate() {
+    const img = document.getElementById('preview-img');
+    const ph = document.getElementById('preview-placeholder');
+    const spinner = document.getElementById('spinner');
+    const bar = document.getElementById('action-bar');
+
+    ph.style.display = 'none';
+    img.style.display = 'none';
+    spinner.style.display = 'block';
+
+    const url = buildUrl(false);
+    const dlUrl = buildUrl(true);
+
+    // Load image
+    const tmp = new Image();
+    tmp.onload = () => {
+      spinner.style.display = 'none';
+      img.src = tmp.src;
+      img.style.display = 'block';
+      bar.style.display = 'block';
+
+      // Update URL bar
+      const fullUrl = window.location.origin + url;
+      document.getElementById('url-bar').textContent = fullUrl;
+      document.getElementById('btn-dl').href = dlUrl;
+
+      // HTML snippet
+      document.getElementById('html-snippet').textContent =
+        `<img src="${fullUrl}" alt="placeholder" />`;
+
+      // Info cards
+      document.getElementById('info-dim').textContent =
+        `${document.getElementById('inp-w').value}×${document.getElementById('inp-h').value}`;
+      document.getElementById('info-fmt').textContent = document.getElementById('inp-fmt').value;
+      document.getElementById('info-bg').textContent = document.getElementById('chk-gradient').checked
+        ? 'Gradient' : '#' + document.getElementById('inp-bg').value;
+    };
+    tmp.onerror = () => {
+      spinner.style.display = 'none';
+      ph.style.display = 'block';
+      ph.querySelector('div').textContent = '⚠ Error generating image';
+    };
+    tmp.src = url;
+  }
+
+  // ---- Copy helpers ----
+  function copyUrl() {
+    const bar = document.getElementById('url-bar');
+    navigator.clipboard.writeText(bar.textContent).then(() => {
+      bar.classList.add('copied');
+      bar.textContent = '✓ Copied!';
+      setTimeout(() => {
+        bar.classList.remove('copied');
+        bar.textContent = window.location.origin + buildUrl(false);
+      }, 1500);
+    });
+  }
+
+  function copySnippet() {
+    const el = document.getElementById('html-snippet');
+    navigator.clipboard.writeText(el.textContent).then(() => {
+      const orig = el.textContent;
+      el.style.color = '#4ade80';
+      el.textContent = '✓ Copied!';
+      setTimeout(() => { el.style.color = ''; el.textContent = orig; }, 1500);
+    });
+  }
+
+  // Generate on Enter in any input
+  document.querySelectorAll('input, select').forEach(el => {
+    el.addEventListener('keydown', e => { if(e.key === 'Enter') generate(); });
+  });
+</script>
+</body>
+</html>
