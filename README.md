@@ -24,8 +24,8 @@ Built with **FastAPI**, **Pillow**, and **Docker**.
 ### Option A — Docker Compose (recommended)
 
 ```bash
-git clone https://github.com/YOUR_USER/placeholder-service.git
-cd placeholder-service
+git clone https://github.com/ribbingwisps0h-max/placeholder.git
+cd placeholder
 docker compose up --build
 ```
 
